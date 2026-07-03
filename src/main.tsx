@@ -18,6 +18,20 @@ import { installGlobalLinkPrefetch } from "@/lib/globalLinkPrefetch";
 import { installThemeColorSync } from "@/lib/themeColorSync";
 import { registerAppServiceWorker } from "@/lib/registerSW";
 
+// If Vercel ever serves the static 404 fallback before SPA rewrites apply,
+// public/404.html redirects here with the original path encoded. Restore it
+// before React Router mounts so deep links like /terms and /chat work normally.
+(() => {
+  try {
+    const url = new URL(window.location.href);
+    const spaPath = url.searchParams.get("__spa_path");
+    if (!spaPath || !spaPath.startsWith("/") || spaPath.startsWith("//")) return;
+    window.history.replaceState(window.history.state, "", spaPath);
+  } catch {
+    /* ignore */
+  }
+})();
+
 patchSupabaseAuth();
 installGlobalLinkPrefetch();
 installThemeColorSync();

@@ -1,65 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: null,
-      filename: "sw.js",
-      devOptions: { enabled: false },
-      includeAssets: [
-        "favicon.png",
-        "favicon-32.png",
-        "apple-touch-icon.png",
-        "pwa-192.png",
-        "pwa-512.png",
-        "robots.txt",
-      ],
-      manifest: false,
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//, /^\/functions\//],
-        cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
-        runtimeCaching: [
-          {
-            urlPattern: ({ request, url }) =>
-              request.mode === "navigate" && !url.pathname.startsWith("/~oauth"),
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "html-navigations",
-              networkTimeoutSeconds: 4,
-              expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 },
-            },
-          },
-          {
-            urlPattern: ({ url, sameOrigin }) =>
-              sameOrigin && /\/assets\/.*\.(?:js|css|woff2|png|svg|webp|jpg|jpeg)$/.test(url.pathname),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "static-assets",
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === "https://fonts.gstatic.com",
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts",
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
-      },
-    }),
   ],
   resolve: {
     alias: {
