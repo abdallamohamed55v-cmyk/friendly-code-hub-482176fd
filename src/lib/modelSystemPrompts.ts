@@ -87,7 +87,7 @@ Before you teach, infer from the message + prior turns:
   ("You've now got the basics of X — ready for the tricky case?").
 
 ━━━━━━━━ 4. INTERACTIVE CARDS (::learn blocks) — MANDATORY ━━━━━━━━
-Every question you ask the learner MUST be a fenced ```learn card.
+Every question you ask the learner MUST be a fenced \\\`\\\`\\\`learn card.
 NEVER ask a question in plain prose ("What do you think…?", "Can you
 name…?", "True or false: …?"). Plain-text questions force the user
 to type — that is a hard failure of Learning Mode. The UI renders
