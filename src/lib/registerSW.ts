@@ -2,8 +2,7 @@
  *  clears stale Cache Storage + localStorage build markers so returning
  *  users pick up the newest build immediately without a manual hard reload. */
 
-const APP_SW_URLS = ["/sw.js", "/service-worker.js"];
-const CACHE_BUSTER_KEY = "__megsy_cache_buster_v2";
+const CACHE_BUSTER_KEY = "__megsy_cache_buster_v4";
 
 async function unregisterAllServiceWorkers(): Promise<boolean> {
   if (!("serviceWorker" in navigator)) return false;
@@ -11,18 +10,16 @@ async function unregisterAllServiceWorkers(): Promise<boolean> {
   try {
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const r of regs) {
-      const url =
-        r.active?.scriptURL ||
-        r.installing?.scriptURL ||
-        r.waiting?.scriptURL ||
-        "";
-      if (APP_SW_URLS.some((p) => url.endsWith(p))) {
-        hadAny = true;
-        try {
-          await r.unregister();
-        } catch {
-          /* ignore */
-        }
+      hadAny = true;
+      try {
+        await r.update();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await r.unregister();
+      } catch {
+        /* ignore */
       }
     }
   } catch {
@@ -70,9 +67,9 @@ export function registerAppServiceWorker(): void {
     }
   };
 
-  if (document.readyState === "complete") {
+  if (document.readyState !== "loading") {
     void run();
   } else {
-    window.addEventListener("load", () => void run(), { once: true });
+    document.addEventListener("DOMContentLoaded", () => void run(), { once: true });
   }
 }
