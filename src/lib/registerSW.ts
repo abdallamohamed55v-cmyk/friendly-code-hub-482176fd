@@ -1,73 +1,78 @@
-/** @doc Guarded service-worker registration. Registers /sw.js only in production
- *  browser contexts (not Lovable preview, not iframe, not dev). Also honours
- *  a ?sw=off kill switch that unregisters any existing app service worker. */
+/** @doc Cache kill-switch. Unregisters any existing app service worker and
+ *  clears stale Cache Storage + localStorage build markers so returning
+ *  users pick up the newest build immediately without a manual hard reload. */
 
-const APP_SW_URL = "/sw.js";
+const APP_SW_URLS = ["/sw.js", "/service-worker.js"];
+const CACHE_BUSTER_KEY = "__megsy_cache_buster_v2";
 
-function isRefusedContext(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    if (!import.meta.env.PROD) return true;
-    if (window.self !== window.top) return true; // iframe (Lovable preview)
-
-    const host = window.location.hostname;
-    if (
-      host.startsWith("id-preview--") ||
-      host.startsWith("preview--") ||
-      host === "lovableproject.com" ||
-      host.endsWith(".lovableproject.com") ||
-      host === "lovableproject-dev.com" ||
-      host.endsWith(".lovableproject-dev.com") ||
-      host === "beta.lovable.dev" ||
-      host.endsWith(".beta.lovable.dev")
-    ) {
-      return true;
-    }
-
-    if (new URLSearchParams(window.location.search).get("sw") === "off") {
-      return true;
-    }
-  } catch {
-    return true;
-  }
-  return false;
-}
-
-async function unregisterAppServiceWorkers(): Promise<void> {
-  if (!("serviceWorker" in navigator)) return;
+async function unregisterAllServiceWorkers(): Promise<boolean> {
+  if (!("serviceWorker" in navigator)) return false;
+  let hadAny = false;
   try {
     const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) {
+      const url =
+        r.active?.scriptURL ||
+        r.installing?.scriptURL ||
+        r.waiting?.scriptURL ||
+        "";
+      if (APP_SW_URLS.some((p) => url.endsWith(p))) {
+        hadAny = true;
+        try {
+          await r.unregister();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return hadAny;
+}
+
+async function clearAppCaches(): Promise<boolean> {
+  if (typeof caches === "undefined") return false;
+  let cleared = false;
+  try {
+    const names = await caches.keys();
     await Promise.allSettled(
-      regs
-        .filter((r) => {
-          const url = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
-          return url.endsWith(APP_SW_URL);
-        })
-        .map((r) => r.unregister()),
+      names.map((n) => {
+        cleared = true;
+        return caches.delete(n);
+      }),
     );
   } catch {
     /* ignore */
   }
+  return cleared;
 }
 
 export function registerAppServiceWorker(): void {
   if (typeof window === "undefined") return;
-  if (!("serviceWorker" in navigator)) return;
 
-  if (isRefusedContext()) {
-    void unregisterAppServiceWorkers();
-    return;
-  }
+  const run = async () => {
+    try {
+      const hadSW = await unregisterAllServiceWorkers();
+      const hadCaches = await clearAppCaches();
 
-  const register = () => {
-    navigator.serviceWorker.register(APP_SW_URL, { scope: "/" }).catch(() => {
-      /* ignore registration errors — offline is best-effort */
-    });
+      // One-time forced reload for returning users that had stale SW/caches,
+      // so the freshly fetched HTML/assets take over instantly.
+      const marker = window.localStorage.getItem(CACHE_BUSTER_KEY);
+      if ((hadSW || hadCaches) && marker !== "1") {
+        window.localStorage.setItem(CACHE_BUSTER_KEY, "1");
+        window.location.reload();
+      } else if (!marker) {
+        window.localStorage.setItem(CACHE_BUSTER_KEY, "1");
+      }
+    } catch {
+      /* ignore */
+    }
   };
 
   if (document.readyState === "complete") {
-    register();
+    void run();
   } else {
-    window.addEventListener("load", register, { once: true });
+    window.addEventListener("load", () => void run(), { once: true });
   }
 }
